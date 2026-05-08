@@ -30,6 +30,13 @@ class Database:
             conn.close()
 
     # ─────────────────────────────────────────────
+    #  Plate Normalization
+    # ─────────────────────────────────────────────
+    def normalize_plate(self, plate):
+        """Normalize plate: remove spaces, convert to uppercase"""
+        return plate.replace(' ', '').upper() if plate else ''
+
+    # ─────────────────────────────────────────────
     #  Schema
     # ─────────────────────────────────────────────
     def init_db(self):
@@ -119,6 +126,9 @@ class Database:
     # ─────────────────────────────────────────────
     def add_vehicle(self, user_id, plate_number, vehicle_type,
                     make='', model_name='', color='', description=''):
+        # Normalize plate
+        plate_number = self.normalize_plate(plate_number)
+        
         with self.get_conn() as conn:
             cur = conn.execute(
                 """INSERT INTO vehicles(user_id,plate_number,vehicle_type,make,model_name,color,description)
@@ -128,12 +138,15 @@ class Database:
             return cur.lastrowid
 
     def get_vehicle_by_plate(self, plate):
+        # Normalize plate
+        plate = self.normalize_plate(plate)
+        
         with self.get_conn() as conn:
             row = conn.execute(
                 """SELECT v.*,u.name as owner_name,u.email as owner_email,
                           u.student_id as owner_student_id
                    FROM vehicles v LEFT JOIN users u ON v.user_id=u.id
-                   WHERE v.plate_number=?""", (plate,)
+                   WHERE REPLACE(UPPER(v.plate_number), ' ', '')=?""", (plate,)
             ).fetchone()
             return dict(row) if row else None
 
@@ -169,14 +182,20 @@ class Database:
     #  Logs
     # ─────────────────────────────────────────────
     def is_vehicle_inside(self, plate):
+        # Normalize plate
+        plate = self.normalize_plate(plate)
+        
         with self.get_conn() as conn:
             row = conn.execute(
-                "SELECT log_type FROM logs WHERE plate_number=? ORDER BY timestamp DESC LIMIT 1",
+                "SELECT log_type FROM logs WHERE REPLACE(UPPER(plate_number), ' ', '')=? ORDER BY timestamp DESC LIMIT 1",
                 (plate,)
             ).fetchone()
             return bool(row and row['log_type'] == 'entry')
 
     def log_entry(self, plate, vehicle_id=None, confidence=100.0, notes=''):
+        # Normalize plate
+        plate = self.normalize_plate(plate)
+        
         with self.get_conn() as conn:
             cur = conn.execute(
                 "INSERT INTO logs(plate_number,vehicle_id,log_type,confidence,notes) VALUES(?,?,'entry',?,?)",
@@ -185,9 +204,12 @@ class Database:
             return cur.lastrowid
 
     def log_exit(self, plate, confidence=100.0, notes=''):
+        # Normalize plate
+        plate = self.normalize_plate(plate)
+        
         with self.get_conn() as conn:
             v = conn.execute(
-                "SELECT id FROM vehicles WHERE plate_number=?", (plate,)
+                "SELECT id FROM vehicles WHERE REPLACE(UPPER(plate_number), ' ', '')=?", (plate,)
             ).fetchone()
             vid = v['id'] if v else None
             cur = conn.execute(
@@ -202,8 +224,8 @@ class Database:
             conditions, params = [], []
 
             if search:
-                conditions.append('(l.plate_number LIKE ? OR u.name LIKE ? OR u.student_id LIKE ?)')
-                params += [f'%{search}%', f'%{search}%', f'%{search}%']
+                conditions.append('(REPLACE(UPPER(l.plate_number), " ", "") LIKE ? OR u.name LIKE ? OR u.student_id LIKE ?)')
+                params += [f'%{search.replace(" ", "").upper()}%', f'%{search}%', f'%{search}%']
             if date_filter:
                 conditions.append('DATE(l.timestamp)=?')
                 params.append(date_filter)
