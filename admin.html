@@ -1,0 +1,1197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GateGuard — Admin Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;800&family=Share+Tech+Mono&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+<style>
+:root {
+  --bg:         #080b12;
+  --surface:    #0d1120;
+  --surface2:   #111825;
+  --border:     #1a2035;
+  --cyan:       #00d4ff;
+  --cyan-dim:   rgba(0,212,255,.1);
+  --amber:      #ffb300;
+  --green:      #00e676;
+  --red:        #ff3d5a;
+  --text:       #c8d6e8;
+  --muted:      #5a6a82;
+  --font-ui:    'DM Sans', sans-serif;
+  --font-tech:  'Orbitron', sans-serif;
+  --font-mono:  'Share Tech Mono', monospace;
+  --sidebar-w:  240px;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-ui);
+  height: 100vh;
+  display: flex;
+  overflow: hidden;
+}
+
+/* ── Sidebar ── */
+.sidebar {
+  width: var(--sidebar-w);
+  flex-shrink: 0;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  z-index: 50;
+}
+.sidebar-logo {
+  padding: 24px 20px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.logo-icon { font-size: 22px; }
+.logo-text { font-family: var(--font-tech); font-size: 15px; font-weight: 800; color: var(--cyan); }
+.logo-sub  { font-size: 10px; color: var(--muted); letter-spacing: 1px; }
+
+.nav { flex: 1; padding: 16px 0; }
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 20px;
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 500;
+  border-left: 2px solid transparent;
+  transition: all .2s;
+  user-select: none;
+}
+.nav-item:hover { color: var(--text); background: rgba(255,255,255,.03); }
+.nav-item.active {
+  color: var(--cyan);
+  background: var(--cyan-dim);
+  border-left-color: var(--cyan);
+}
+.nav-item .icon { font-size: 16px; width: 20px; text-align: center; }
+
+.sidebar-footer {
+  padding: 16px 20px;
+  border-top: 1px solid var(--border);
+}
+.user-pill {
+  display: flex; align-items: center; gap: 10px;
+  background: rgba(255,255,255,.04);
+  border-radius: 6px;
+  padding: 10px 12px;
+  margin-bottom: 12px;
+}
+.user-avatar {
+  width: 32px; height: 32px;
+  border-radius: 50%;
+  background: var(--cyan-dim);
+  border: 1px solid var(--cyan);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px;
+}
+.user-name  { font-size: 13px; font-weight: 600; }
+.user-role  { font-size: 10px; color: var(--cyan); letter-spacing: 1px; }
+.btn-logout {
+  width: 100%;
+  padding: 9px;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--muted);
+  font-size: 12px;
+  font-family: var(--font-tech);
+  letter-spacing: 1px;
+  cursor: pointer;
+  transition: all .2s;
+}
+.btn-logout:hover { border-color: var(--red); color: var(--red); }
+
+/* ── Main ── */
+.main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 28px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  flex-shrink: 0;
+}
+.page-title {
+  font-family: var(--font-tech);
+  font-size: 14px;
+  letter-spacing: 2px;
+  color: var(--cyan);
+}
+.topbar-right { display: flex; gap: 12px; align-items: center; }
+
+.status-pill {
+  display: flex; align-items: center; gap: 7px;
+  padding: 6px 12px;
+  border-radius: 20px;
+  border: 1px solid var(--border);
+  font-size: 11px;
+  font-family: var(--font-mono);
+}
+.dot {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: var(--muted);
+}
+.dot.on  { background: var(--green); box-shadow: 0 0 6px var(--green); animation: pulse 2s ease infinite; }
+.dot.off { background: var(--red);   box-shadow: 0 0 6px var(--red);   }
+@keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:.4;} }
+
+.content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px 28px;
+}
+
+/* ── Pages ── */
+.page { display: none; }
+.page.active { display: block; }
+
+/* ── Stats Grid ── */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 14px;
+  margin-bottom: 24px;
+}
+.stat-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 18px 20px;
+  position: relative;
+  overflow: hidden;
+  transition: border-color .2s;
+}
+.stat-card:hover { border-color: var(--cyan); }
+.stat-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+}
+.stat-card.cyan::before  { background: var(--cyan); }
+.stat-card.green::before { background: var(--green); }
+.stat-card.red::before   { background: var(--red); }
+.stat-card.amber::before { background: var(--amber); }
+.stat-card.purple::before { background: #b388ff; }
+
+.stat-icon  { font-size: 22px; margin-bottom: 10px; }
+.stat-val   { font-family: var(--font-tech); font-size: 28px; font-weight: 800; }
+.stat-label { font-size: 11px; color: var(--muted); margin-top: 4px; letter-spacing: 1px; text-transform: uppercase; }
+
+/* ── Camera section ── */
+.cam-grid {
+  display: grid;
+  grid-template-columns: 1fr 360px;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+.cam-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border);
+}
+.panel-title {
+  font-family: var(--font-tech);
+  font-size: 11px;
+  letter-spacing: 2px;
+  color: var(--cyan);
+  text-transform: uppercase;
+}
+.panel-actions { display: flex; gap: 8px; }
+
+.btn-sm {
+  padding: 6px 14px;
+  border-radius: 3px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text);
+  font-size: 11px;
+  font-family: var(--font-mono);
+  cursor: pointer;
+  transition: all .2s;
+}
+.btn-sm:hover { border-color: var(--cyan); color: var(--cyan); }
+.btn-sm.primary {
+  background: var(--cyan);
+  border-color: var(--cyan);
+  color: #000;
+  font-weight: 700;
+}
+.btn-sm.primary:hover { background: #33deff; }
+.btn-sm.danger  { border-color: var(--red); color: var(--red); }
+.btn-sm.danger:hover { background: rgba(255,61,90,.1); }
+
+.cam-view {
+  width: 100%;
+  aspect-ratio: 16/9;
+  background: #000;
+  position: relative;
+  overflow: hidden;
+}
+.cam-view img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.cam-overlay {
+  position: absolute; inset: 0;
+  pointer-events: none;
+}
+.cam-corners {
+  position: absolute; inset: 16px;
+  border: 1px solid rgba(0,212,255,.3);
+  border-radius: 2px;
+}
+.cam-corners::before, .cam-corners::after,
+.cam-inner::before, .cam-inner::after {
+  content: '';
+  position: absolute;
+  width: 20px; height: 20px;
+  border-color: var(--cyan);
+  border-style: solid;
+}
+.cam-corners::before { top:-1px; left:-1px;  border-width: 2px 0 0 2px; }
+.cam-corners::after  { top:-1px; right:-1px; border-width: 2px 2px 0 0; }
+.cam-inner::before   { bottom:-1px; left:-1px;  border-width: 0 0 2px 2px; }
+.cam-inner::after    { bottom:-1px; right:-1px; border-width: 0 2px 2px 0; }
+.cam-label {
+  position: absolute; bottom: 12px; left: 12px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--cyan);
+  background: rgba(0,0,0,.6);
+  padding: 3px 8px;
+  border-radius: 2px;
+  border: 1px solid rgba(0,212,255,.3);
+}
+.cam-rec {
+  position: absolute; top: 12px; right: 12px;
+  display: flex; align-items: center; gap: 6px;
+  font-family: var(--font-mono); font-size: 11px;
+  color: var(--red);
+  background: rgba(0,0,0,.7);
+  padding: 3px 8px; border-radius: 2px;
+}
+.cam-rec .rdot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--red);
+  animation: pulse 1s ease infinite;
+}
+
+/* ── Upload dropzone ── */
+.upload-zone {
+  border: 2px dashed var(--border);
+  border-radius: 4px;
+  padding: 24px;
+  text-align: center;
+  cursor: pointer;
+  transition: all .2s;
+  margin: 16px;
+}
+.upload-zone:hover, .upload-zone.drag-over {
+  border-color: var(--cyan);
+  background: var(--cyan-dim);
+}
+.upload-zone .icon { font-size: 32px; margin-bottom: 8px; }
+.upload-zone p { font-size: 13px; color: var(--muted); }
+.upload-zone span { color: var(--cyan); }
+#upload-input { display: none; }
+
+/* ── Live feed ── */
+.live-feed {
+  padding: 0;
+  max-height: 400px;
+  overflow-y: auto;
+}
+.feed-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 18px;
+  border-bottom: 1px solid var(--border);
+  animation: fadeIn .3s ease;
+  transition: background .2s;
+}
+.feed-item:hover { background: rgba(255,255,255,.02); }
+@keyframes fadeIn { from { opacity:0; transform: translateX(-8px); } }
+.feed-badge {
+  width: 34px; height: 34px;
+  border-radius: 3px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 15px;
+  flex-shrink: 0;
+}
+.feed-badge.entry { background: rgba(0,230,118,.15); border: 1px solid rgba(0,230,118,.3); }
+.feed-badge.exit  { background: rgba(255,61,90,.12);  border: 1px solid rgba(255,61,90,.3); }
+.feed-plate {
+  font-family: var(--font-mono);
+  font-size: 14px;
+  color: var(--text);
+  font-weight: 700;
+}
+.feed-owner { font-size: 11px; color: var(--muted); }
+.feed-time  { margin-left: auto; font-family: var(--font-mono); font-size: 11px; color: var(--muted); }
+.feed-conf  {
+  font-family: var(--font-mono); font-size: 10px;
+  padding: 2px 6px; border-radius: 2px;
+  background: rgba(0,212,255,.1);
+  color: var(--cyan);
+}
+.feed-reg {
+  font-size: 10px; padding: 2px 6px; border-radius: 2px;
+}
+.feed-reg.yes { background: rgba(0,230,118,.1); color: var(--green); }
+.feed-reg.no  { background: rgba(255,179,0,.1);  color: var(--amber); }
+
+/* ── Manual entry panel ── */
+.manual-form {
+  padding: 16px;
+  border-top: 1px solid var(--border);
+}
+.manual-row {
+  display: flex;
+  gap: 8px;
+}
+.manual-form input, .manual-form select {
+  flex: 1;
+  background: rgba(0,0,0,.3);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  padding: 9px 12px;
+  outline: none;
+  transition: border-color .2s;
+}
+.manual-form input:focus, .manual-form select:focus {
+  border-color: var(--cyan);
+}
+
+/* ── Table ── */
+.table-wrap {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.table-controls {
+  display: flex;
+  gap: 12px;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
+  align-items: center;
+}
+.table-controls input,
+.table-controls select {
+  background: rgba(0,0,0,.3);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  padding: 8px 12px;
+  outline: none;
+  transition: border-color .2s;
+}
+.table-controls input:focus,
+.table-controls select:focus { border-color: var(--cyan); }
+.table-controls input { flex: 1; min-width: 200px; }
+
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th {
+  text-align: left;
+  padding: 12px 16px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 1.5px;
+  color: var(--muted);
+  text-transform: uppercase;
+  border-bottom: 1px solid var(--border);
+  background: rgba(0,0,0,.2);
+}
+td {
+  padding: 12px 16px;
+  border-bottom: 1px solid rgba(26,32,53,.5);
+  vertical-align: middle;
+}
+tr:hover td { background: rgba(255,255,255,.02); }
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-family: var(--font-mono);
+  font-weight: 700;
+}
+.badge.entry { background: rgba(0,230,118,.12); color: var(--green); border: 1px solid rgba(0,230,118,.2); }
+.badge.exit  { background: rgba(255,61,90,.1);  color: var(--red);   border: 1px solid rgba(255,61,90,.2); }
+.badge.reg   { background: rgba(0,212,255,.1);  color: var(--cyan);  border: 1px solid rgba(0,212,255,.2); }
+.badge.unreg { background: rgba(255,179,0,.1);  color: var(--amber); border: 1px solid rgba(255,179,0,.2); }
+
+.plate-text {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+  background: rgba(0,0,0,.3);
+  border: 1px solid var(--border);
+  padding: 3px 8px;
+  border-radius: 3px;
+  letter-spacing: 1px;
+  display: inline-block;
+}
+
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 18px;
+  border-top: 1px solid var(--border);
+  font-size: 12px;
+  color: var(--muted);
+  font-family: var(--font-mono);
+}
+.page-btns { display: flex; gap: 6px; }
+.page-btn {
+  width: 30px; height: 30px;
+  display: flex; align-items: center; justify-content: center;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  color: var(--muted);
+  font-size: 12px;
+  cursor: pointer;
+  transition: all .2s;
+}
+.page-btn:hover, .page-btn.active { border-color: var(--cyan); color: var(--cyan); }
+.page-btn:disabled { opacity: .3; cursor: not-allowed; }
+
+/* ── Currently inside ── */
+.inside-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px;
+  padding: 16px;
+}
+.inside-card {
+  background: rgba(0,230,118,.05);
+  border: 1px solid rgba(0,230,118,.15);
+  border-radius: 4px;
+  padding: 16px;
+  animation: fadeIn .3s ease;
+}
+.inside-card .plate {
+  font-family: var(--font-mono);
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 8px;
+  letter-spacing: 2px;
+}
+.inside-card .meta { font-size: 12px; color: var(--muted); }
+.inside-card .since { font-family: var(--font-mono); font-size: 11px; color: var(--green); margin-top: 8px; }
+.empty-state {
+  text-align: center;
+  padding: 48px;
+  color: var(--muted);
+  font-size: 14px;
+}
+.empty-state .big { font-size: 40px; margin-bottom: 12px; }
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar { width: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+/* ── toast ── */
+.toast-container {
+  position: fixed; top: 20px; right: 20px;
+  z-index: 1000;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.toast {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 14px 18px;
+  min-width: 280px;
+  font-size: 13px;
+  animation: slideIn .3s ease;
+  display: flex; align-items: center; gap: 10px;
+}
+.toast.entry { border-left: 3px solid var(--green); }
+.toast.exit  { border-left: 3px solid var(--red);   }
+.toast.info  { border-left: 3px solid var(--cyan);  }
+@keyframes slideIn { from { opacity:0; transform: translateX(20px); } }
+</style>
+</head>
+<body>
+
+<!-- ── Sidebar ── -->
+<div class="sidebar">
+  <div class="sidebar-logo">
+    <div class="logo-icon">🚗</div>
+    <div>
+      <div class="logo-text">GATEGUARD</div>
+      <div class="logo-sub">ADMIN CONSOLE</div>
+    </div>
+  </div>
+
+  <nav class="nav">
+    <div class="nav-item active" onclick="showPage('dashboard')">
+      <span class="icon">📊</span> Dashboard
+    </div>
+    <div class="nav-item" onclick="showPage('camera')">
+      <span class="icon">📹</span> Live Camera
+    </div>
+    <div class="nav-item" onclick="showPage('inside')">
+      <span class="icon">🟢</span> Currently Inside
+    </div>
+    <div class="nav-item" onclick="showPage('logs')">
+      <span class="icon">📋</span> Vehicle Logs
+    </div>
+    <div class="nav-item" onclick="showPage('vehicles')">
+      <span class="icon">🚙</span> Registered Vehicles
+    </div>
+    <div class="nav-item" onclick="showPage('students')">
+      <span class="icon">👥</span> Students
+    </div>
+  </nav>
+
+  <div class="sidebar-footer">
+    <div class="user-pill">
+      <div class="user-avatar">👤</div>
+      <div>
+        <div class="user-name" id="sidebar-name">Admin</div>
+        <div class="user-role">ADMINISTRATOR</div>
+      </div>
+    </div>
+    <button class="btn-logout" onclick="logout()">LOGOUT</button>
+  </div>
+</div>
+
+<!-- ── Main ── -->
+<div class="main">
+  <div class="topbar">
+    <span class="page-title" id="page-title">DASHBOARD</span>
+    <div class="topbar-right">
+      <div class="status-pill">
+        <div class="dot" id="cam-dot"></div>
+        <span id="cam-status">CAMERA OFFLINE</span>
+      </div>
+      <div class="status-pill">
+        <div class="dot on"></div>
+        <span id="clock-display">00:00:00</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="content">
+
+    <!-- ══ DASHBOARD PAGE ══ -->
+    <div class="page active" id="page-dashboard">
+      <div class="stats-grid">
+        <div class="stat-card cyan">
+          <div class="stat-icon">🚗</div>
+          <div class="stat-val" id="s-total">—</div>
+          <div class="stat-label">Registered Vehicles</div>
+        </div>
+        <div class="stat-card green">
+          <div class="stat-icon">⬆️</div>
+          <div class="stat-val" id="s-entry">—</div>
+          <div class="stat-label">Entries Today</div>
+        </div>
+        <div class="stat-card red">
+          <div class="stat-icon">⬇️</div>
+          <div class="stat-val" id="s-exit">—</div>
+          <div class="stat-label">Exits Today</div>
+        </div>
+        <div class="stat-card amber">
+          <div class="stat-icon">🟢</div>
+          <div class="stat-val" id="s-inside">—</div>
+          <div class="stat-label">Currently Inside</div>
+        </div>
+        <div class="stat-card purple">
+          <div class="stat-icon">👥</div>
+          <div class="stat-val" id="s-students">—</div>
+          <div class="stat-label">Registered Students</div>
+        </div>
+      </div>
+
+      <!-- Recent activity table -->
+      <div class="table-wrap">
+        <div class="panel-head">
+          <span class="panel-title">RECENT ACTIVITY</span>
+          <button class="btn-sm" onclick="loadLiveLogs()">↻ Refresh</button>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>Plate</th><th>Type</th><th>Owner</th>
+              <th>Vehicle</th><th>Status</th><th>Confidence</th><th>Time</th>
+            </tr>
+          </thead>
+          <tbody id="recent-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ══ CAMERA PAGE ══ -->
+    <div class="page" id="page-camera">
+      <div class="cam-grid">
+        <!-- Live feed -->
+        <div class="cam-panel">
+          <div class="panel-head">
+            <span class="panel-title">LIVE CAMERA FEED</span>
+            <div class="panel-actions">
+              <button class="btn-sm primary" onclick="startCamera()">▶ START</button>
+              <button class="btn-sm danger"  onclick="stopCamera()">■ STOP</button>
+            </div>
+          </div>
+          <div class="cam-view">
+            <img id="cam-img" src="/api/camera/feed" alt="Camera Feed">
+            <div class="cam-overlay">
+              <div class="cam-corners"><div class="cam-inner"></div></div>
+              <div class="cam-label" id="cam-lbl">CAM-01 | GATE ENTRANCE</div>
+              <div class="cam-rec" id="cam-rec-ind" style="display:none">
+                <div class="rdot"></div> REC
+              </div>
+            </div>
+          </div>
+          <!-- Image upload -->
+          <div class="upload-zone" id="upload-zone"
+               onclick="document.getElementById('upload-input').click()"
+               ondragover="event.preventDefault();this.classList.add('drag-over')"
+               ondragleave="this.classList.remove('drag-over')"
+               ondrop="handleDrop(event)">
+            <div class="icon">📤</div>
+            <p>Drop an image or <span>click to upload</span> for plate detection</p>
+          </div>
+          <input type="file" id="upload-input" accept="image/*" onchange="handleUpload(event)">
+        </div>
+
+        <!-- Live detection feed -->
+        <div class="cam-panel" style="display:flex;flex-direction:column;">
+          <div class="panel-head">
+            <span class="panel-title">DETECTION LOG</span>
+            <span id="detect-count" style="font-family:var(--font-mono);font-size:11px;color:var(--muted)">0 events</span>
+          </div>
+          <div class="live-feed" id="live-feed" style="flex:1;overflow-y:auto;"></div>
+
+          <!-- Manual entry -->
+          <div class="manual-form">
+            <div style="font-family:var(--font-mono);font-size:10px;letter-spacing:1px;color:var(--muted);margin-bottom:10px;">MANUAL PLATE ENTRY</div>
+            <div class="manual-row">
+              <input id="man-plate" type="text" placeholder="DL 01 AB 1234" style="text-transform:uppercase;">
+              <select id="man-type">
+                <option value="entry">ENTRY</option>
+                <option value="exit">EXIT</option>
+              </select>
+              <button class="btn-sm primary" onclick="manualLog()">LOG</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ CURRENTLY INSIDE PAGE ══ -->
+    <div class="page" id="page-inside">
+      <div class="table-wrap" style="margin-bottom:0;">
+        <div class="panel-head">
+          <span class="panel-title">VEHICLES CURRENTLY INSIDE CAMPUS</span>
+          <button class="btn-sm" onclick="loadInsideVehicles()">↻ Refresh</button>
+        </div>
+        <div class="inside-grid" id="inside-grid">
+          <div class="empty-state" style="grid-column:1/-1">
+            <div class="big">🏫</div>Loading...
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ LOGS PAGE ══ -->
+    <div class="page" id="page-logs">
+      <div class="table-wrap">
+        <div class="panel-head">
+          <span class="panel-title">VEHICLE LOGS</span>
+          <button class="btn-sm" onclick="exportLogs()">⬇ Export CSV</button>
+        </div>
+        <div class="table-controls">
+          <input id="log-search" type="text" placeholder="🔍  Search plate, name or student ID…"
+                 oninput="debounce(loadLogs,500)()">
+          <input id="log-date"   type="date" onchange="loadLogs()" style="width:150px;">
+          <select id="log-type" onchange="loadLogs()" style="width:120px;">
+            <option value="">All Types</option>
+            <option value="entry">Entry</option>
+            <option value="exit">Exit</option>
+          </select>
+          <button class="btn-sm" onclick="clearLogFilters()">✕ Clear</button>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>#</th><th>Plate Number</th><th>Type</th><th>Owner</th>
+              <th>Student ID</th><th>Vehicle</th><th>Status</th>
+              <th>Confidence</th><th>Timestamp</th>
+            </tr>
+          </thead>
+          <tbody id="logs-tbody"></tbody>
+        </table>
+        <div class="pagination">
+          <span id="log-info">Loading…</span>
+          <div class="page-btns" id="log-pages"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ VEHICLES PAGE ══ -->
+    <div class="page" id="page-vehicles">
+      <div class="table-wrap">
+        <div class="panel-head">
+          <span class="panel-title">ALL REGISTERED VEHICLES</span>
+          <span id="veh-count" style="font-family:var(--font-mono);font-size:11px;color:var(--muted)"></span>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>Plate</th><th>Type</th><th>Make / Model</th>
+              <th>Color</th><th>Owner</th><th>Student ID</th><th>Registered</th>
+            </tr>
+          </thead>
+          <tbody id="vehicles-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ══ STUDENTS PAGE ══ -->
+    <div class="page" id="page-students">
+      <div class="table-wrap">
+        <div class="panel-head">
+          <span class="panel-title">REGISTERED STUDENTS</span>
+        </div>
+        <table>
+          <thead>
+            <tr><th>Name</th><th>Email</th><th>Student ID</th><th>Phone</th><th>Joined</th></tr>
+          </thead>
+          <tbody id="students-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+
+  </div><!-- content -->
+</div><!-- main -->
+
+<div class="toast-container" id="toasts"></div>
+
+<script>
+// ── globals ──
+let socket, logsPage = 1, detectCount = 0;
+const allLogs = [];
+
+// ── init ──
+window.addEventListener('DOMContentLoaded', async () => {
+  clockTick();
+  setInterval(clockTick, 1000);
+  setInterval(loadStats, 30000);
+
+  initSocket();
+  loadStats();
+  loadLiveLogs();
+  loadCameraStatus();
+});
+
+function clockTick() {
+  document.getElementById('clock-display').textContent =
+    new Date().toLocaleTimeString('en-IN', {hour12:false});
+}
+
+// ── socket ──
+function initSocket() {
+  socket = io();
+  socket.on('plate_detected', data => {
+    detectCount++;
+    document.getElementById('detect-count').textContent = detectCount + ' events';
+    prependFeedItem(data);
+    prependRecentRow(data);
+    showToast(data);
+    loadStats();  // refresh numbers
+    if (currentPage === 'inside') loadInsideVehicles();
+  });
+  socket.on('status', data => updateCamStatus(data.camera));
+}
+
+// ── nav ──
+let currentPage = 'dashboard';
+function showPage(name) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('page-' + name).classList.add('active');
+  event.currentTarget.classList.add('active');
+  document.getElementById('page-title').textContent = name.toUpperCase();
+  currentPage = name;
+
+  if (name === 'logs')     { logsPage = 1; loadLogs(); }
+  if (name === 'vehicles') loadVehicles();
+  if (name === 'students') loadStudents();
+  if (name === 'inside')   loadInsideVehicles();
+}
+
+// ── stats ──
+async function loadStats() {
+  try {
+    const d = await apiFetch('/api/stats');
+    document.getElementById('s-total').textContent   = d.total_vehicles;
+    document.getElementById('s-entry').textContent   = d.entries_today;
+    document.getElementById('s-exit').textContent    = d.exits_today;
+    document.getElementById('s-inside').textContent  = d.currently_inside;
+    document.getElementById('s-students').textContent= d.registered_students;
+  } catch (e) { console.error(e); }
+}
+
+// ── recent / live logs ──
+async function loadLiveLogs() {
+  try {
+    const logs = await apiFetch('/api/logs/live');
+    const tbody = document.getElementById('recent-tbody');
+    tbody.innerHTML = logs.map(renderRecentRow).join('');
+  } catch (e) {}
+}
+
+function renderRecentRow(l) {
+  const color = l.log_type === 'entry' ? 'var(--green)' : 'var(--red)';
+  return `<tr>
+    <td><span class="plate-text">${l.plate_number}</span></td>
+    <td><span class="badge ${l.log_type}">${l.log_type === 'entry' ? '⬆' : '⬇'} ${l.log_type.toUpperCase()}</span></td>
+    <td>${l.owner_name || '—'}</td>
+    <td style="color:var(--muted);font-size:12px;">${[l.vehicle_type, l.make].filter(Boolean).join(' · ') || '—'}</td>
+    <td><span class="badge ${l.vehicle_id ? 'reg' : 'unreg'}">${l.vehicle_id ? '✓ REG' : '⚠ UNREG'}</span></td>
+    <td style="font-family:var(--font-mono);font-size:12px;color:var(--cyan);">${l.confidence?.toFixed(0) ?? 100}%</td>
+    <td style="font-family:var(--font-mono);font-size:11px;color:var(--muted);">${fmtTime(l.timestamp)}</td>
+  </tr>`;
+}
+
+function prependRecentRow(data) {
+  const tbody = document.getElementById('recent-tbody');
+  const row = document.createElement('tr');
+  row.style.animation = 'fadeIn .3s ease';
+  row.innerHTML = `
+    <td><span class="plate-text">${data.plate}</span></td>
+    <td><span class="badge ${data.type}">${data.type === 'entry' ? '⬆' : '⬇'} ${data.type.toUpperCase()}</span></td>
+    <td>${data.owner || '—'}</td>
+    <td style="color:var(--muted);font-size:12px;">—</td>
+    <td><span class="badge ${data.registered ? 'reg' : 'unreg'}">${data.registered ? '✓ REG' : '⚠ UNREG'}</span></td>
+    <td style="font-family:var(--font-mono);font-size:12px;color:var(--cyan);">${data.confidence?.toFixed(0) ?? 100}%</td>
+    <td style="font-family:var(--font-mono);font-size:11px;color:var(--muted);">LIVE</td>`;
+  tbody.prepend(row);
+  if (tbody.children.length > 20) tbody.lastElementChild.remove();
+}
+
+// ── live feed items ──
+function prependFeedItem(data) {
+  const feed = document.getElementById('live-feed');
+  const div = document.createElement('div');
+  div.className = 'feed-item';
+  div.innerHTML = `
+    <div class="feed-badge ${data.type}">${data.type === 'entry' ? '⬆️' : '⬇️'}</div>
+    <div>
+      <div class="feed-plate">${data.plate}</div>
+      <div class="feed-owner">${data.owner || 'Unknown'}</div>
+    </div>
+    <span class="feed-reg ${data.registered ? 'yes' : 'no'}">${data.registered ? 'REG' : 'UNREG'}</span>
+    ${data.confidence < 100 ? `<span class="feed-conf">${data.confidence?.toFixed(0)}%</span>` : ''}
+    <div class="feed-time">LIVE</div>`;
+  feed.prepend(div);
+  if (feed.children.length > 50) feed.lastElementChild.remove();
+}
+
+// ── camera ──
+async function loadCameraStatus() {
+  try {
+    const d = await apiFetch('/api/camera/status');
+    updateCamStatus(d.running);
+  } catch {}
+}
+
+function updateCamStatus(running) {
+  const dot = document.getElementById('cam-dot');
+  const lbl = document.getElementById('cam-status');
+  const rec = document.getElementById('cam-rec-ind');
+  if (running) {
+    dot.className = 'dot on';
+    lbl.textContent = 'CAMERA LIVE';
+    if (rec) rec.style.display = 'flex';
+  } else {
+    dot.className = 'dot off';
+    lbl.textContent = 'CAMERA OFFLINE';
+    if (rec) rec.style.display = 'none';
+  }
+}
+
+async function startCamera() {
+  try {
+    const d = await apiFetch('/api/camera/start', {method:'POST', body:{}});
+    showToast({type:'info', plate:'System', owner: d.message || 'Camera started'});
+    updateCamStatus(d.success);
+  } catch (e) { showToast({type:'exit', plate:'Error', owner: 'Could not start camera'}); }
+}
+
+async function stopCamera() {
+  await apiFetch('/api/camera/stop', {method:'POST', body:{}});
+  updateCamStatus(false);
+}
+
+// ── image upload ──
+function handleDrop(e) {
+  e.preventDefault();
+  document.getElementById('upload-zone').classList.remove('drag-over');
+  const file = e.dataTransfer.files[0];
+  if (file) processFile(file);
+}
+function handleUpload(e) {
+  const file = e.target.files[0];
+  if (file) processFile(file);
+}
+async function processFile(file) {
+  const reader = new FileReader();
+  reader.onload = async (e) => {
+    const b64 = e.target.result;
+    showToast({type:'info', plate:'Upload', owner:'Processing image…'});
+    try {
+      const d = await apiFetch('/api/detect/image', {
+        method:'POST',
+        body:{image_base64: b64}
+      });
+      if (d.count === 0) {
+        showToast({type:'exit', plate:'No plates', owner:'No number plates detected in image'});
+      } else {
+        d.plates.forEach(p => showToast({
+          type: p.type, plate: p.plate, owner: p.owner,
+          confidence: p.confidence, registered: p.registered
+        }));
+      }
+    } catch (e) { showToast({type:'exit', plate:'Error', owner:'Detection failed'}); }
+  };
+  reader.readAsDataURL(file);
+}
+
+// ── manual log ──
+async function manualLog() {
+  const plate = document.getElementById('man-plate').value.trim().toUpperCase();
+  const type  = document.getElementById('man-type').value;
+  if (!plate) return;
+  await apiFetch('/api/logs/manual', {method:'POST', body:{plate, type}});
+  document.getElementById('man-plate').value = '';
+}
+
+// ── full logs ──
+const _debTimers = {};
+function debounce(fn, delay) {
+  return function() {
+    clearTimeout(_debTimers[fn]);
+    _debTimers[fn] = setTimeout(fn, delay);
+  };
+}
+
+async function loadLogs() {
+  const search = document.getElementById('log-search').value;
+  const date   = document.getElementById('log-date').value;
+  const type   = document.getElementById('log-type').value;
+
+  const url = `/api/logs?page=${logsPage}&per_page=20&search=${encodeURIComponent(search)}&date=${date}&type=${type}`;
+  try {
+    const d = await apiFetch(url);
+    document.getElementById('logs-tbody').innerHTML =
+      d.logs.map((l, i) => `<tr>
+        <td style="color:var(--muted);font-family:var(--font-mono);font-size:11px;">${(logsPage-1)*20+i+1}</td>
+        <td><span class="plate-text">${l.plate_number}</span></td>
+        <td><span class="badge ${l.log_type}">${l.log_type === 'entry' ? '⬆' : '⬇'} ${l.log_type.toUpperCase()}</span></td>
+        <td>${l.owner_name || '—'}</td>
+        <td style="font-family:var(--font-mono);font-size:12px;">${l.owner_student_id || '—'}</td>
+        <td style="font-size:12px;color:var(--muted);">${[l.vehicle_type, l.make, l.model_name].filter(Boolean).join(' ')  || '—'}</td>
+        <td><span class="badge ${l.vehicle_id ? 'reg':'unreg'}">${l.vehicle_id ? '✓ Registered':'⚠ Unknown'}</span></td>
+        <td style="font-family:var(--font-mono);font-size:12px;color:var(--cyan);">${l.confidence?.toFixed(0) ?? 100}%</td>
+        <td style="font-family:var(--font-mono);font-size:11px;color:var(--muted);">${fmtDateTime(l.timestamp)}</td>
+      </tr>`).join('');
+
+    const total = d.total;
+    const pages = Math.ceil(total / 20);
+    document.getElementById('log-info').textContent = `Showing ${d.logs.length} of ${total} records`;
+    renderPagination(pages, logsPage, p => { logsPage = p; loadLogs(); });
+  } catch (e) { console.error(e); }
+}
+
+function clearLogFilters() {
+  document.getElementById('log-search').value = '';
+  document.getElementById('log-date').value   = '';
+  document.getElementById('log-type').value   = '';
+  logsPage = 1;
+  loadLogs();
+}
+
+function renderPagination(total, current, cb) {
+  const el = document.getElementById('log-pages');
+  let html = '';
+  for (let p = 1; p <= Math.min(total, 7); p++) {
+    html += `<button class="page-btn ${p===current?'active':''}"
+             onclick="(${cb.toString()})(${p})">${p}</button>`;
+  }
+  el.innerHTML = html;
+}
+
+// ── vehicles ──
+async function loadVehicles() {
+  try {
+    const vs = await apiFetch('/api/vehicles');
+    document.getElementById('veh-count').textContent = vs.length + ' vehicles';
+    document.getElementById('vehicles-tbody').innerHTML =
+      vs.map(v => `<tr>
+        <td><span class="plate-text">${v.plate_number}</span></td>
+        <td style="text-transform:capitalize;">${v.vehicle_type}</td>
+        <td>${[v.make, v.model_name].filter(Boolean).join(' ') || '—'}</td>
+        <td>${v.color || '—'}</td>
+        <td>${v.owner_name || '—'}</td>
+        <td style="font-family:var(--font-mono);font-size:12px;">${v.owner_student_id || '—'}</td>
+        <td style="font-family:var(--font-mono);font-size:11px;color:var(--muted);">${fmtDate(v.registered_at)}</td>
+      </tr>`).join('');
+  } catch (e) {}
+}
+
+// ── inside vehicles ──
+async function loadInsideVehicles() {
+  try {
+    const list = await apiFetch('/api/logs/inside');
+    const grid = document.getElementById('inside-grid');
+    if (!list.length) {
+      grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1">
+        <div class="big">🏫</div>No vehicles currently on campus</div>`;
+      return;
+    }
+    grid.innerHTML = list.map(v => `
+      <div class="inside-card">
+        <div class="plate">${v.plate_number}</div>
+        <div class="meta">${v.owner_name || 'Unregistered'} ${v.owner_student_id ? '· ' + v.owner_student_id : ''}</div>
+        <div class="meta">${[v.vehicle_type, v.make, v.color].filter(Boolean).join(' · ') || 'Unknown vehicle'}</div>
+        <div class="since">⬆ Entered ${fmtDateTime(v.timestamp)}</div>
+      </div>`).join('');
+  } catch (e) {}
+}
+
+// ── students ──
+async function loadStudents() {
+  try {
+    const users = await apiFetch('/api/admin/users');
+    const students = users.filter(u => u.role === 'student');
+    document.getElementById('students-tbody').innerHTML =
+      students.map(u => `<tr>
+        <td>${u.name}</td>
+        <td style="font-family:var(--font-mono);font-size:12px;">${u.email}</td>
+        <td style="font-family:var(--font-mono);font-size:12px;">${u.student_id || '—'}</td>
+        <td>${u.phone || '—'}</td>
+        <td style="font-family:var(--font-mono);font-size:11px;color:var(--muted);">${fmtDate(u.created_at)}</td>
+      </tr>`).join('');
+  } catch (e) {}
+}
+
+// ── export CSV ──
+async function exportLogs() {
+  const search = document.getElementById('log-search').value;
+  const date   = document.getElementById('log-date').value;
+  const logs   = await apiFetch(`/api/logs?per_page=10000&search=${search}&date=${date}`);
+  const rows   = [
+    ['ID','Plate','Type','Owner','StudentID','Vehicle','Registered','Confidence','Timestamp'],
+    ...logs.logs.map(l => [
+      l.id, l.plate_number, l.log_type, l.owner_name||'',
+      l.owner_student_id||'', [l.vehicle_type,l.make].filter(Boolean).join(' '),
+      l.vehicle_id ? 'Yes' : 'No',
+      l.confidence?.toFixed(1) + '%',
+      l.timestamp
+    ])
+  ];
+  const csv  = rows.map(r => r.map(c => `"${c}"`).join(',')).join('\n');
+  const link = document.createElement('a');
+  link.href     = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
+  link.download = `gate-logs-${new Date().toISOString().slice(0,10)}.csv`;
+  link.click();
+}
+
+// ── toast ──
+function showToast(data) {
+  const el = document.createElement('div');
+  el.className = `toast ${data.type || 'info'}`;
+  const icon = data.type === 'entry' ? '⬆️' : data.type === 'exit' ? '⬇️' : 'ℹ️';
+  el.innerHTML = `${icon} <div>
+    <div style="font-family:var(--font-mono);font-weight:700;">${data.plate}</div>
+    <div style="font-size:11px;color:var(--muted);">${data.owner || ''} ${data.confidence ? '· ' + data.confidence?.toFixed(0) + '%' : ''}</div>
+  </div>`;
+  document.getElementById('toasts').prepend(el);
+  setTimeout(() => el.remove(), 5000);
+}
+
+// ── helpers ──
+async function apiFetch(url, opts = {}) {
+  const res = await fetch(url, {
+    method: opts.method || 'GET',
+    headers: {'Content-Type':'application/json'},
+    body: opts.body ? JSON.stringify(opts.body) : undefined,
+  });
+  if (res.status === 401) { window.location = '/'; return; }
+  return res.json();
+}
+
+function fmtTime(ts) {
+  if (!ts) return '—';
+  return new Date(ts).toLocaleTimeString('en-IN', {hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false});
+}
+function fmtDate(ts) {
+  if (!ts) return '—';
+  return new Date(ts).toLocaleDateString('en-IN', {day:'2-digit',month:'short',year:'numeric'});
+}
+function fmtDateTime(ts) {
+  if (!ts) return '—';
+  return new Date(ts).toLocaleString('en-IN', {day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit',hour12:false});
+}
+
+async function logout() {
+  await fetch('/api/auth/logout', {method:'POST'});
+  window.location = '/';
+}
+</script>
+</body>
+</html>

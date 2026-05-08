@@ -1,0 +1,761 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GateGuard — Student Portal</title>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;800&family=Share+Tech+Mono&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+<style>
+:root {
+  --bg:        #080b12;
+  --surface:   #0d1120;
+  --surface2:  #111825;
+  --border:    #1a2035;
+  --cyan:      #00d4ff;
+  --cyan-dim:  rgba(0,212,255,.1);
+  --amber:     #ffb300;
+  --green:     #00e676;
+  --red:       #ff3d5a;
+  --text:      #c8d6e8;
+  --muted:     #5a6a82;
+  --font-ui:   'DM Sans', sans-serif;
+  --font-tech: 'Orbitron', sans-serif;
+  --font-mono: 'Share Tech Mono', monospace;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-ui);
+  min-height: 100vh;
+}
+
+/* ── Top nav ── */
+.topnav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 32px;
+  height: 58px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  position: sticky; top: 0; z-index: 50;
+}
+.nav-logo {
+  display: flex; align-items: center; gap: 10px;
+  font-family: var(--font-tech);
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--cyan);
+  letter-spacing: 2px;
+}
+.nav-tabs {
+  display: flex; gap: 4px;
+}
+.nav-tab {
+  padding: 8px 18px;
+  border-radius: 4px;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all .2s;
+}
+.nav-tab.active, .nav-tab:hover {
+  color: var(--cyan);
+  background: var(--cyan-dim);
+}
+.nav-right { display: flex; align-items: center; gap: 16px; }
+.user-chip {
+  display: flex; align-items: center; gap: 8px;
+  background: rgba(255,255,255,.04);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 6px 14px;
+  font-size: 13px;
+}
+.btn-sm-nav {
+  padding: 7px 16px;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--muted);
+  font-size: 12px;
+  cursor: pointer;
+  transition: all .2s;
+}
+.btn-sm-nav:hover { border-color: var(--red); color: var(--red); }
+
+/* ── Layout ── */
+.container { max-width: 1100px; margin: 0 auto; padding: 32px 24px; }
+
+/* ── Pages ── */
+.page { display: none; }
+.page.active { display: block; }
+
+/* ── Section heading ── */
+.section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+}
+.section-title {
+  font-family: var(--font-tech);
+  font-size: 12px;
+  letter-spacing: 2px;
+  color: var(--cyan);
+  text-transform: uppercase;
+}
+
+/* ── Cards ── */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  margin-bottom: 20px;
+}
+.card-head {
+  padding: 16px 22px;
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between;
+}
+.card-title {
+  font-family: var(--font-tech);
+  font-size: 11px;
+  letter-spacing: 2px;
+  color: var(--cyan);
+}
+.card-body { padding: 22px; }
+
+/* ── Form ── */
+.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.form-group { display: flex; flex-direction: column; gap: 7px; }
+.form-group.full { grid-column: 1/-1; }
+label {
+  font-size: 11px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--muted);
+  font-family: var(--font-mono);
+}
+input, select, textarea {
+  background: rgba(0,0,0,.35);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  padding: 11px 14px;
+  outline: none;
+  transition: border-color .2s, box-shadow .2s;
+}
+input:focus, select:focus, textarea:focus {
+  border-color: var(--cyan);
+  box-shadow: 0 0 0 3px rgba(0,212,255,.08);
+}
+input::placeholder { color: var(--muted); }
+textarea { resize: vertical; min-height: 70px; }
+
+.btn-primary {
+  padding: 12px 28px;
+  background: var(--cyan);
+  border: none;
+  border-radius: 4px;
+  color: #000;
+  font-family: var(--font-tech);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 2px;
+  cursor: pointer;
+  transition: all .2s;
+}
+.btn-primary:hover { background: #33deff; box-shadow: 0 0 20px rgba(0,212,255,.3); }
+.btn-danger {
+  padding: 6px 14px;
+  background: transparent;
+  border: 1px solid rgba(255,61,90,.3);
+  border-radius: 4px;
+  color: var(--red);
+  font-size: 12px;
+  cursor: pointer;
+  transition: all .2s;
+}
+.btn-danger:hover { background: rgba(255,61,90,.1); }
+
+.msg-ok  { color: var(--green); font-size: 13px; font-family: var(--font-mono); margin-top: 10px; }
+.msg-err { color: var(--red);   font-size: 13px; font-family: var(--font-mono); margin-top: 10px; }
+
+/* ── Vehicle cards ── */
+.veh-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 14px;
+}
+.veh-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 20px;
+  position: relative;
+  transition: border-color .2s;
+  animation: fadeIn .3s ease;
+}
+.veh-card:hover { border-color: rgba(0,212,255,.3); }
+@keyframes fadeIn { from { opacity:0; transform: translateY(8px); } }
+
+.veh-type-icon { font-size: 32px; margin-bottom: 12px; }
+.veh-plate {
+  font-family: var(--font-mono);
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: 3px;
+  background: rgba(0,0,0,.4);
+  border: 1px solid var(--border);
+  padding: 6px 12px;
+  border-radius: 4px;
+  display: inline-block;
+  margin-bottom: 12px;
+}
+.veh-meta { font-size: 13px; color: var(--muted); line-height: 1.9; }
+.veh-meta b { color: var(--text); }
+.veh-actions {
+  position: absolute; top: 16px; right: 16px;
+}
+.veh-type-badge {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 1px;
+  padding: 3px 10px;
+  border-radius: 20px;
+  background: var(--cyan-dim);
+  border: 1px solid rgba(0,212,255,.2);
+  color: var(--cyan);
+  display: inline-block;
+  margin-bottom: 8px;
+  text-transform: uppercase;
+}
+
+/* ── Logs table ── */
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th {
+  text-align: left;
+  padding: 11px 16px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 1.5px;
+  color: var(--muted);
+  text-transform: uppercase;
+  border-bottom: 1px solid var(--border);
+  background: rgba(0,0,0,.15);
+}
+td {
+  padding: 11px 16px;
+  border-bottom: 1px solid rgba(26,32,53,.5);
+  vertical-align: middle;
+}
+tr:hover td { background: rgba(255,255,255,.02); }
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-family: var(--font-mono);
+  font-weight: 700;
+}
+.badge.entry { background: rgba(0,230,118,.12); color: var(--green); border: 1px solid rgba(0,230,118,.2); }
+.badge.exit  { background: rgba(255,61,90,.1);  color: var(--red);   border: 1px solid rgba(255,61,90,.2); }
+
+.plate-text {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  background: rgba(0,0,0,.3);
+  border: 1px solid var(--border);
+  padding: 3px 8px;
+  border-radius: 3px;
+  display: inline-block;
+}
+
+/* ── My profile ── */
+.profile-grid { display: grid; grid-template-columns: 280px 1fr; gap: 20px; }
+.profile-avatar {
+  width: 80px; height: 80px;
+  border-radius: 50%;
+  background: var(--cyan-dim);
+  border: 2px solid var(--cyan);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 36px;
+  margin: 0 auto 16px;
+}
+.profile-name {
+  font-family: var(--font-tech);
+  font-size: 16px;
+  font-weight: 700;
+  text-align: center;
+  color: var(--text);
+  margin-bottom: 4px;
+}
+.profile-role {
+  text-align: center;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--cyan);
+  letter-spacing: 2px;
+  margin-bottom: 20px;
+}
+.profile-info { font-size: 13px; line-height: 2; }
+.profile-info .lbl { color: var(--muted); font-size: 11px; }
+
+.stat-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+.mini-stat {
+  background: rgba(0,0,0,.2);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 16px;
+  text-align: center;
+}
+.mini-stat .val { font-family: var(--font-tech); font-size: 26px; font-weight: 800; margin-bottom: 4px; }
+.mini-stat .lbl { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; }
+
+/* ── Live alert ── */
+.live-alert {
+  position: fixed;
+  bottom: 24px; right: 24px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 16px 20px;
+  min-width: 280px;
+  z-index: 200;
+  animation: slideUp .3s ease;
+  display: none;
+}
+.live-alert.entry { border-left: 3px solid var(--green); }
+.live-alert.exit  { border-left: 3px solid var(--red);   }
+@keyframes slideUp { from { opacity:0; transform: translateY(12px); } }
+.live-alert-title { font-family: var(--font-mono); font-weight: 700; margin-bottom: 4px; }
+.live-alert-sub   { font-size: 12px; color: var(--muted); }
+
+::-webkit-scrollbar { width: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+.spinner {
+  display: inline-block; width: 14px; height: 14px;
+  border: 2px solid rgba(0,0,0,.3);
+  border-top-color: #000;
+  border-radius: 50%;
+  animation: spin .6s linear infinite;
+  vertical-align: middle; margin-right: 8px;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.empty-state {
+  text-align: center; padding: 48px;
+  color: var(--muted); font-size: 14px;
+}
+.empty-state .big { font-size: 40px; margin-bottom: 12px; }
+
+.vehicle-type-icons = {car:'🚗', bike:'🏍️', bicycle:'🚲', truck:'🚛', bus:'🚌', other:'🚐'};
+</style>
+</head>
+<body>
+
+<!-- ── Top nav ── -->
+<nav class="topnav">
+  <div class="nav-logo">🚗 GATEGUARD</div>
+  <div class="nav-tabs">
+    <button class="nav-tab active" onclick="showPage('my-vehicles')">My Vehicles</button>
+    <button class="nav-tab"        onclick="showPage('register')">Register Vehicle</button>
+    <button class="nav-tab"        onclick="showPage('my-logs')">My Logs</button>
+    <button class="nav-tab"        onclick="showPage('profile')">Profile</button>
+  </div>
+  <div class="nav-right">
+    <div class="user-chip">👤 <span id="nav-name">Student</span></div>
+    <button class="btn-sm-nav" onclick="logout()">Logout</button>
+  </div>
+</nav>
+
+<div class="container">
+
+  <!-- ══ MY VEHICLES PAGE ══ -->
+  <div class="page active" id="page-my-vehicles">
+    <div class="section-head">
+      <span class="section-title">My Registered Vehicles</span>
+      <button class="btn-primary" onclick="showPage('register'); event.stopPropagation()">+ Register New</button>
+    </div>
+    <div class="veh-grid" id="veh-grid">
+      <div class="empty-state" style="grid-column:1/-1">
+        <div class="big">🔄</div>Loading vehicles…
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ REGISTER VEHICLE PAGE ══ -->
+  <div class="page" id="page-register">
+    <div class="section-head">
+      <span class="section-title">Register a Vehicle</span>
+    </div>
+    <div class="card">
+      <div class="card-head">
+        <span class="card-title">VEHICLE DETAILS</span>
+      </div>
+      <div class="card-body">
+        <div id="reg-msg"></div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Number Plate *</label>
+            <input type="text" id="v-plate" placeholder="DL 01 AB 1234"
+                   style="text-transform:uppercase;font-size:15px;letter-spacing:3px;"
+                   oninput="this.value=this.value.toUpperCase()">
+          </div>
+          <div class="form-group">
+            <label>Vehicle Type *</label>
+            <select id="v-type">
+              <option value="car">🚗 Car</option>
+              <option value="bike">🏍️ Bike / Motorcycle</option>
+              <option value="bicycle">🚲 Bicycle</option>
+              <option value="truck">🚛 Truck</option>
+              <option value="bus">🚌 Bus</option>
+              <option value="other">🚐 Other</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Make (Brand)</label>
+            <input type="text" id="v-make" placeholder="Honda, Maruti, Tata…">
+          </div>
+          <div class="form-group">
+            <label>Model</label>
+            <input type="text" id="v-model" placeholder="City, Swift, Nexon…">
+          </div>
+          <div class="form-group">
+            <label>Color</label>
+            <input type="text" id="v-color" placeholder="White, Black, Silver…">
+          </div>
+          <div class="form-group">
+            <label>Description / Notes</label>
+            <input type="text" id="v-desc" placeholder="Optional additional info">
+          </div>
+        </div>
+
+        <div style="margin-top:20px;padding:16px;background:rgba(0,212,255,.05);border:1px solid rgba(0,212,255,.15);border-radius:4px;font-size:12px;color:var(--muted);">
+          ℹ️ Registering your vehicle helps the system recognize your number plate faster and accurately. Your vehicle's movement data will be logged each time you enter or exit the college gate.
+        </div>
+
+        <div style="margin-top:20px;">
+          <button class="btn-primary" id="add-veh-btn" onclick="addVehicle()">REGISTER VEHICLE</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ MY LOGS PAGE ══ -->
+  <div class="page" id="page-my-logs">
+    <div class="section-head">
+      <span class="section-title">My Entry / Exit History</span>
+      <span id="my-logs-count" style="font-family:var(--font-mono);font-size:11px;color:var(--muted)"></span>
+    </div>
+    <div class="card" style="margin-bottom:0;">
+      <div class="card-head">
+        <span class="card-title">GATE LOG HISTORY</span>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>Plate</th><th>Direction</th><th>Vehicle</th><th>Confidence</th><th>Date & Time</th>
+          </tr>
+        </thead>
+        <tbody id="my-logs-tbody"></tbody>
+      </table>
+      <div style="padding:12px 18px;border-top:1px solid var(--border);
+                  display:flex;align-items:center;justify-content:space-between;
+                  font-family:var(--font-mono);font-size:11px;color:var(--muted);">
+        <span id="my-log-info">—</span>
+        <div id="my-log-pages" style="display:flex;gap:6px;"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ PROFILE PAGE ══ -->
+  <div class="page" id="page-profile">
+    <div class="section-head">
+      <span class="section-title">My Profile</span>
+    </div>
+    <div class="profile-grid">
+      <!-- Left: Info -->
+      <div class="card" style="margin:0;">
+        <div class="card-body" style="text-align:center;">
+          <div class="profile-avatar">🎓</div>
+          <div class="profile-name" id="prof-name">—</div>
+          <div class="profile-role">STUDENT</div>
+          <div class="profile-info">
+            <div><span class="lbl">Email</span><br><span id="prof-email">—</span></div>
+            <div><span class="lbl">Student ID</span><br><span id="prof-sid">—</span></div>
+            <div><span class="lbl">Phone</span><br><span id="prof-phone">—</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right: Stats -->
+      <div>
+        <div class="card" style="margin-bottom:14px;">
+          <div class="card-head"><span class="card-title">MY ACTIVITY</span></div>
+          <div class="card-body">
+            <div class="stat-row">
+              <div class="mini-stat">
+                <div class="val" id="pstat-veh">—</div>
+                <div class="lbl">Vehicles</div>
+              </div>
+              <div class="mini-stat">
+                <div class="val" style="color:var(--green);" id="pstat-entry">—</div>
+                <div class="lbl">Total Entries</div>
+              </div>
+              <div class="mini-stat">
+                <div class="val" style="color:var(--red);" id="pstat-exit">—</div>
+                <div class="lbl">Total Exits</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card" style="margin:0;">
+          <div class="card-head"><span class="card-title">IMPORTANT NOTICE</span></div>
+          <div class="card-body" style="font-size:13px;color:var(--muted);line-height:1.9;">
+            <p>📌 All vehicles entering and exiting the campus are monitored 24/7 by our ANPR camera system.</p>
+            <br>
+            <p>📌 Register your vehicles to enable faster and more accurate plate recognition.</p>
+            <br>
+            <p>📌 Unregistered vehicles are still logged but shown as <span style="color:var(--amber)">Unknown</span> in the system.</p>
+            <br>
+            <p>📌 For any issues, contact the college security office.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- container -->
+
+<!-- live alert -->
+<div class="live-alert" id="live-alert">
+  <div class="live-alert-title" id="la-plate">—</div>
+  <div class="live-alert-sub"   id="la-sub">—</div>
+</div>
+
+<script>
+let myPage = 1, myUserId = null, myVehicles = [];
+
+window.addEventListener('DOMContentLoaded', async () => {
+  await loadProfile();
+  loadMyVehicles();
+  initSocket();
+});
+
+async function loadProfile() {
+  const me = await apiFetch('/api/auth/me');
+  myUserId = me.id;
+  document.getElementById('nav-name').textContent = me.name.split(' ')[0];
+  document.getElementById('prof-name').textContent  = me.name;
+  document.getElementById('prof-email').textContent = me.email;
+  document.getElementById('prof-sid').textContent   = me.student_id || '—';
+  document.getElementById('prof-phone').textContent = me.phone || '—';
+}
+
+function initSocket() {
+  const socket = io();
+  socket.on('plate_detected', data => {
+    // Check if belongs to my vehicles
+    const mine = myVehicles.some(v => v.plate_number === data.plate);
+    if (mine) showLiveAlert(data);
+  });
+}
+
+function showPage(name) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('page-' + name).classList.add('active');
+  event.currentTarget.classList.add('active');
+
+  if (name === 'my-vehicles') loadMyVehicles();
+  if (name === 'my-logs')     { myPage=1; loadMyLogs(); }
+  if (name === 'profile')     loadProfileStats();
+}
+
+// ── Vehicles ──
+async function loadMyVehicles() {
+  try {
+    const vs = await apiFetch('/api/vehicles');
+    myVehicles = vs;
+    const grid = document.getElementById('veh-grid');
+    if (!vs.length) {
+      grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1">
+        <div class="big">🚗</div>
+        <div>No vehicles registered yet</div>
+        <div style="margin-top:12px;">
+          <button class="btn-primary" onclick="showPage('register')">Register Your First Vehicle</button>
+        </div>
+      </div>`;
+      return;
+    }
+    const icons = {car:'🚗', bike:'🏍️', bicycle:'🚲', truck:'🚛', bus:'🚌', other:'🚐'};
+    grid.innerHTML = vs.map(v => `
+      <div class="veh-card">
+        <div class="veh-actions">
+          <button class="btn-danger" onclick="deleteVehicle(${v.id})">✕</button>
+        </div>
+        <div class="veh-type-icon">${icons[v.vehicle_type] || '🚗'}</div>
+        <div class="veh-type-badge">${v.vehicle_type.toUpperCase()}</div>
+        <div class="veh-plate">${v.plate_number}</div>
+        <div class="veh-meta">
+          ${v.make ? `<div><b>${v.make}</b> ${v.model_name || ''}</div>` : ''}
+          ${v.color ? `<div>Color: <b>${v.color}</b></div>` : ''}
+          ${v.description ? `<div>${v.description}</div>` : ''}
+          <div style="margin-top:8px;font-size:11px;color:var(--muted);">
+            Registered ${fmtDate(v.registered_at)}
+          </div>
+        </div>
+      </div>`).join('');
+  } catch (e) {}
+}
+
+async function addVehicle() {
+  const plate = document.getElementById('v-plate').value.trim().toUpperCase();
+  const type  = document.getElementById('v-type').value;
+  const make  = document.getElementById('v-make').value.trim();
+  const model = document.getElementById('v-model').value.trim();
+  const color = document.getElementById('v-color').value.trim();
+  const desc  = document.getElementById('v-desc').value.trim();
+  const btn   = document.getElementById('add-veh-btn');
+  const msgEl = document.getElementById('reg-msg');
+
+  msgEl.innerHTML = '';
+  if (!plate) { msgEl.innerHTML = '<div class="msg-err">⚠ Plate number required</div>'; return; }
+
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>REGISTERING…';
+
+  try {
+    const d = await apiFetch('/api/vehicles', {
+      method:'POST',
+      body:{plate_number:plate, vehicle_type:type, make, model_name:model, color, description:desc}
+    });
+    if (d.success) {
+      msgEl.innerHTML = '<div class="msg-ok">✓ Vehicle registered successfully!</div>';
+      ['v-plate','v-make','v-model','v-color','v-desc'].forEach(id => {
+        document.getElementById(id).value = '';
+      });
+      await loadMyVehicles();
+    } else {
+      msgEl.innerHTML = `<div class="msg-err">⚠ ${d.error}</div>`;
+    }
+  } catch (e) {
+    msgEl.innerHTML = '<div class="msg-err">⚠ Connection error</div>';
+  }
+
+  btn.disabled = false;
+  btn.innerHTML = 'REGISTER VEHICLE';
+}
+
+async function deleteVehicle(id) {
+  if (!confirm('Remove this vehicle from your account?')) return;
+  await apiFetch(`/api/vehicles/${id}`, {method:'DELETE', body:{}});
+  loadMyVehicles();
+}
+
+// ── Logs ──
+async function loadMyLogs() {
+  try {
+    const d = await apiFetch(`/api/logs?page=${myPage}&per_page=20`);
+    document.getElementById('my-log-info').textContent =
+      `Showing ${d.logs.length} of ${d.total} records`;
+    document.getElementById('my-logs-count').textContent = d.total + ' total events';
+
+    document.getElementById('my-logs-tbody').innerHTML =
+      d.logs.length
+        ? d.logs.map(l => `<tr>
+          <td><span class="plate-text">${l.plate_number}</span></td>
+          <td><span class="badge ${l.log_type}">${l.log_type === 'entry' ? '⬆ ENTRY':'⬇ EXIT'}</span></td>
+          <td style="font-size:12px;color:var(--muted);">${[l.vehicle_type,l.make].filter(Boolean).join(' ') || '—'}</td>
+          <td style="font-family:var(--font-mono);font-size:12px;color:var(--cyan);">${l.confidence?.toFixed(0) ?? 100}%</td>
+          <td style="font-family:var(--font-mono);font-size:11px;color:var(--muted);">${fmtDateTime(l.timestamp)}</td>
+        </tr>`).join('')
+        : '<tr><td colspan="5" style="text-align:center;padding:40px;color:var(--muted);">No logs found</td></tr>';
+
+    const pages = Math.ceil(d.total / 20);
+    const pagesEl = document.getElementById('my-log-pages');
+    let html = '';
+    for (let p = 1; p <= Math.min(pages, 7); p++) {
+      html += `<button style="width:30px;height:30px;display:flex;align-items:center;
+               justify-content:center;background:${p===myPage?'transparent':'transparent'};
+               border:1px solid ${p===myPage?'var(--cyan)':'var(--border)'};
+               border-radius:3px;color:${p===myPage?'var(--cyan)':'var(--muted)'};
+               font-size:12px;cursor:pointer;"
+               onclick="myPage=${p};loadMyLogs()">${p}</button>`;
+    }
+    pagesEl.innerHTML = html;
+  } catch (e) {}
+}
+
+// ── Profile stats ──
+async function loadProfileStats() {
+  try {
+    const vs = await apiFetch('/api/vehicles');
+    document.getElementById('pstat-veh').textContent = vs.length;
+
+    const logs = await apiFetch('/api/logs?per_page=1000');
+    const entries = logs.logs.filter(l => l.log_type === 'entry').length;
+    const exits   = logs.logs.filter(l => l.log_type === 'exit').length;
+    document.getElementById('pstat-entry').textContent = entries;
+    document.getElementById('pstat-exit').textContent  = exits;
+  } catch (e) {}
+}
+
+// ── Live alert for own vehicles ──
+function showLiveAlert(data) {
+  const el    = document.getElementById('live-alert');
+  const plate = document.getElementById('la-plate');
+  const sub   = document.getElementById('la-sub');
+  el.className = 'live-alert ' + data.type;
+  plate.textContent = (data.type === 'entry' ? '⬆ ENTRY: ' : '⬇ EXIT: ') + data.plate;
+  sub.textContent   = 'Your vehicle was detected at the gate';
+  el.style.display  = 'block';
+  setTimeout(() => { el.style.display = 'none'; }, 6000);
+}
+
+// ── Helpers ──
+async function apiFetch(url, opts = {}) {
+  const res = await fetch(url, {
+    method: opts.method || 'GET',
+    headers: {'Content-Type':'application/json'},
+    body: opts.body ? JSON.stringify(opts.body) : undefined,
+  });
+  if (res.status === 401) { window.location = '/'; return; }
+  return res.json();
+}
+function fmtDate(ts) {
+  if (!ts) return '—';
+  return new Date(ts).toLocaleDateString('en-IN', {day:'2-digit',month:'short',year:'numeric'});
+}
+function fmtDateTime(ts) {
+  if (!ts) return '—';
+  return new Date(ts).toLocaleString('en-IN',
+    {day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit',hour12:false});
+}
+
+async function logout() {
+  await fetch('/api/auth/logout', {method:'POST'});
+  window.location = '/';
+}
+</script>
+</body>
+</html>
