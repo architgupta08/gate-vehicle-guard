@@ -14,6 +14,7 @@ from flask_socketio import SocketIO, emit
 from werkzeug.security import generate_password_hash, check_password_hash
 
 from database import Database
+from plate_detector import PlateDetector, fuzzy_match_plate
 from plate_detector import PlateDetector
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -221,7 +222,19 @@ def api_manual_log():
     if not plate:
         return jsonify({'error': 'Plate required'}), 400
 
+    # Try exact match
     vehicle = db.get_vehicle_by_plate(plate)
+    
+    # If no match, try fuzzy matching
+    if not vehicle:
+        from difflib import SequenceMatcher
+        all_vehicles = db.get_all_vehicles()
+        registered_plates = [v['plate_number'] for v in all_vehicles]
+        
+        best_plate, score = fuzzy_match_plate(plate, registered_plates, threshold=0.80)
+        if best_plate:
+            vehicle = db.get_vehicle_by_plate(best_plate)
+            plate = best_plate
 
     if ltype == 'entry':
         db.log_entry(plate, vehicle['id'] if vehicle else None)
@@ -240,7 +253,6 @@ def api_manual_log():
     socketio.emit('plate_detected', event)
     return jsonify({'success': True, 'event': event})
 
-
 # ─────────────────────────────────────────────────────────────────────────────
 #  Stats API
 # ─────────────────────────────────────────────────────────────────────────────
@@ -255,9 +267,23 @@ def api_stats():
 # ─────────────────────────────────────────────────────────────────────────────
 def _on_plate_detected(plate_info: dict):
     """Callback from background camera thread → DB + SocketIO broadcast."""
-    plate   = plate_info['plate']
+    plate = plate_info['plate']
+    
+    # Try exact match first
     vehicle = db.get_vehicle_by_plate(plate)
-    inside  = db.is_vehicle_inside(plate)
+    
+    # If no exact match, try fuzzy matching
+    if not vehicle:
+        from difflib import SequenceMatcher
+        all_vehicles = db.get_all_vehicles()
+        registered_plates = [v['plate_number'] for v in all_vehicles]
+        
+        best_plate, score = fuzzy_match_plate(plate, registered_plates, threshold=0.80)
+        if best_plate:
+            vehicle = db.get_vehicle_by_plate(best_plate)
+            plate = best_plate  # Use the matched plate
+    
+    inside = db.is_vehicle_inside(plate)
 
     if inside:
         db.log_exit(plate, confidence=plate_info['confidence'])
