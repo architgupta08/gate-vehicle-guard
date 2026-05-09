@@ -73,7 +73,7 @@ def admin_page():
 
 @app.route('/student')
 def student_page():
-    if session.get('role') not in ('student', 'admin'):
+    if session.get('role') not in ('student', 'faculty', 'admin'):
         return redirect('/')
     return render_template('student.html',
                            user_name=session.get('name', 'Student'))
@@ -84,53 +84,127 @@ def student_page():
 # ─────────────────────────────────────────────────────────────────────────────
 @app.route('/api/auth/login', methods=['POST'])
 def api_login():
+
     data = request.get_json(force=True)
-    user = db.get_user_by_email(data.get('email', '').strip())
-    if user and check_password_hash(user['password'], data.get('password', '')):
+
+    email = data.get('email', '').strip().lower()
+
+    # Allow only GCET emails
+
+    if not email.endswith('@gcet.edu'):
+
+        return jsonify({
+            'error': 'Use your GCET email address'
+        }), 400
+
+    user = db.get_user_by_email(email)
+
+    if user and check_password_hash(
+        user['password'],
+        data.get('password', '')
+    ):
+
         session.permanent = True
+
         session['user_id'] = user['id']
         session['role']    = user['role']
         session['name']    = user['name']
-        return jsonify({'success': True,
-                        'role': user['role'],
-                        'name': user['name']})
-    return jsonify({'error': 'Invalid email or password'}), 401
 
+        return jsonify({
+
+            'success': True,
+
+            'role': user['role'],
+
+            'name': user['name']
+
+        })
+
+    return jsonify({
+        'error': 'Invalid email or password'
+    }), 401
 
 @app.route('/api/auth/logout', methods=['POST'])
 def api_logout():
     session.clear()
     return jsonify({'success': True})
 
-
-@app.route('/api/auth/register', methods=['POST'])
-def api_register():
-    data = request.get_json(force=True)
-    required = ['name', 'email', 'password']
-    if not all(data.get(k) for k in required):
-        return jsonify({'error': 'Name, email and password are required'}), 400
-
-    if db.get_user_by_email(data['email']):
-        return jsonify({'error': 'Email already registered'}), 409
-
-    user_id = db.create_user(
-        name       = data['name'].strip(),
-        email      = data['email'].strip().lower(),
-        password   = generate_password_hash(data['password']),
-        role       = 'student',
-        student_id = data.get('student_id', '').strip(),
-        phone      = data.get('phone', '').strip(),
-    )
-    return jsonify({'success': True, 'user_id': user_id}), 201
-
-
 @app.route('/api/auth/me')
 @login_required
 def api_me():
-    user = db.get_user_by_id(session['user_id'])
-    return jsonify({k: user[k] for k in
-                    ('id', 'name', 'email', 'role', 'student_id', 'phone')})
 
+    user = db.get_user_by_id(session['user_id'])
+
+    if not user:
+
+        return jsonify({
+            'error': 'User not found'
+        }), 404
+
+    return jsonify({
+
+        'id': user['id'],
+
+        'name': user['name'],
+
+        'email': user['email'],
+
+        'role': user['role'],
+
+        'student_id': user['student_id'],
+
+        'phone': user['phone']
+
+    })
+
+@app.route('/api/auth/register', methods=['POST'])
+def api_register():
+
+    data = request.get_json(force=True)
+
+    email = data.get('email', '').strip().lower()
+
+    # Allow only GCET emails
+
+    if not email.endswith('@gcet.edu'):
+
+        return jsonify({
+            'error': 'Only GCET email addresses are allowed'
+        }), 400
+
+    required = ['name', 'email', 'password']
+
+    if not all(data.get(k) for k in required):
+
+        return jsonify({
+            'error': 'Name, email and password are required'
+        }), 400
+
+    if db.get_user_by_email(email):
+
+        return jsonify({
+            'error': 'Email already registered'
+        }), 409
+
+    user_id = db.create_user(
+
+        name       = data['name'].strip(),
+
+        email      = email,
+
+        password   = generate_password_hash(data['password']),
+
+        role       = data.get('role', 'student'),
+
+        student_id = data.get('student_id', '').strip(),
+
+        phone      = data.get('phone', '').strip(),
+    )
+
+    return jsonify({
+        'success': True,
+        'user_id': user_id
+    }), 201
 
 # ─────────────────────────────────────────────────────────────────────────────
 #  Vehicles API
@@ -246,12 +320,28 @@ def api_manual_log():
         'type':       ltype,
         'registered': vehicle is not None,
         'owner':      vehicle['owner_name'] if vehicle else 'Unknown',
-        'timestamp':  datetime.now().isoformat(),
+        'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         'confidence': 100,
         'manual':     True,
     }
     socketio.emit('plate_detected', event)
     return jsonify({'success': True, 'event': event})
+
+
+@app.route('/api/logs/<int:log_id>', methods=['DELETE'])
+@admin_required
+def api_delete_log(log_id):
+    try:
+        db.delete_log(log_id)
+        return jsonify({
+            'success': True,
+            'message': 'Log deleted successfully'
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
 
 # ─────────────────────────────────────────────────────────────────────────────
 #  Stats API
@@ -348,6 +438,8 @@ def camera_feed():
                     mimetype='multipart/x-mixed-replace; boundary=frame')
 
 
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 #  Image upload detection
 # ─────────────────────────────────────────────────────────────────────────────
@@ -399,6 +491,49 @@ def api_detect_image():
 def api_all_users():
     return jsonify(db.get_all_users())
 
+@app.route('/api/student/<int:user_id>/logs')
+@admin_required
+def api_student_logs(user_id):
+
+    logs = db.get_student_logs(user_id)
+
+    return jsonify({
+        'logs': logs
+    })
+
+@app.route('/api/admin/users/<int:user_id>', methods=['DELETE'])
+@admin_required
+def api_delete_user(user_id):
+
+    try:
+
+        # Prevent deleting admin account
+
+        user = db.get_user_by_id(user_id)
+
+        if not user:
+            return jsonify({
+                'error': 'User not found'
+            }), 404
+
+        if user['role'] == 'admin':
+            return jsonify({
+                'error': 'Admin account cannot be deleted'
+            }), 403
+
+        db.delete_user(user_id)
+
+        return jsonify({
+            'success': True
+        })
+
+    except Exception as e:
+
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+    
 
 # ─────────────────────────────────────────────────────────────────────────────
 #  WebSocket events
@@ -423,7 +558,7 @@ def on_ping():
 if __name__ == '__main__':
     print("=" * 60)
     print("  College Gate Monitor  –  Starting on http://0.0.0.0:5000")
-    print("  Admin login: admin@college.edu / admin123")
+    print("  Admin login: admin@gcet.edu / admin123")
     print("=" * 60)
     socketio.run(app, host='0.0.0.0', port=5000, debug=True,
                  allow_unsafe_werkzeug=True)

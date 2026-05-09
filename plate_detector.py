@@ -3,6 +3,15 @@ College Gate Monitor - ANPR (Automatic Number Plate Recognition)
 Uses EasyOCR + OpenCV for real-time plate detection from camera or uploaded images.
 """
 
+# Fix PIL.Image compatibility issue
+import sys
+try:
+    from PIL import Image
+    if not hasattr(Image, 'ANTIALIAS'):
+        Image.ANTIALIAS = Image.Resampling.LANCZOS
+except Exception as e:
+    print(f"[WARN] PIL patch failed: {e}")
+
 import cv2
 import numpy as np
 import re
@@ -11,11 +20,34 @@ import time
 import base64
 import io
 from datetime import datetime
+from difflib import SequenceMatcher  # ADD THIS
 
+# ────────────────────────────────────────────────────────────────
+#  Fuzzy Matching Function
+# ────────────────────────────────────────────────────────────────
+def fuzzy_match_plate(detected_plate, registered_plates, threshold=0.85):
+    """
+    Match detected plate against registered plates with tolerance for OCR errors.
+    Returns the best match if similarity > threshold, else returns None.
+    """
+    detected_clean = detected_plate.replace(' ', '').upper()
+    best_match = None
+    best_score = 0
+    
+    for reg_plate in registered_plates:
+        reg_clean = reg_plate.replace(' ', '').upper()
+        score = SequenceMatcher(None, detected_clean, reg_clean).ratio()
+        
+        if score > best_score:
+            best_score = score
+            best_match = reg_plate if score > threshold else None
+    
+    return best_match, best_score
 
 # ─────────────────────────────────────────────────────────────────────────────
 #  Indian number plate patterns
 # ─────────────────────────────────────────────────────────────────────────────
+
 PLATE_PATTERNS = [
     r'^[A-Z]{2}\d{2}[A-Z]{1,3}\d{4}$',   # DL01AB1234
     r'^[A-Z]{2}\d{2}[A-Z]{1,2}\d{1,4}$',  # Short variants

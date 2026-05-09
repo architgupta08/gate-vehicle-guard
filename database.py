@@ -83,12 +83,12 @@ class Database:
     def _seed_admin(self):
         with self.get_conn() as conn:
             exists = conn.execute(
-                "SELECT id FROM users WHERE email='admin@college.edu'"
-            ).fetchone()
+                    "SELECT id FROM users WHERE email='admin@gcet.edu'"
+                ).fetchone()
             if not exists:
                 conn.execute(
                     "INSERT INTO users(name,email,password,role,student_id) VALUES(?,?,?,?,?)",
-                    ('Admin', 'admin@college.edu',
+                    ('Admin', 'admin@gcet.edu',
                      generate_password_hash('admin123'), 'admin', 'ADMIN001')
                 )
 
@@ -136,7 +136,7 @@ class Database:
                 (user_id, plate_number, vehicle_type, make, model_name, color, description)
             )
             return cur.lastrowid
-
+    
     def get_vehicle_by_plate(self, plate):
         # Normalize plate
         plate = self.normalize_plate(plate)
@@ -177,6 +177,15 @@ class Database:
                 )
             else:
                 conn.execute("DELETE FROM vehicles WHERE id=?", (vehicle_id,))
+    def delete_user(self, user_id):
+
+     with self.get_conn() as conn:
+ 
+        conn.execute(
+            "DELETE FROM users WHERE id=?",
+            (user_id,)
+        )
+
 
     # ─────────────────────────────────────────────
     #  Logs
@@ -311,6 +320,45 @@ class Database:
     # ─────────────────────────────────────────────
     #  Stats
     # ─────────────────────────────────────────────
+    def delete_log(self, log_id):
+
+     with self.get_conn() as conn:
+
+        cursor = conn.cursor()
+
+        cursor.execute(
+            "DELETE FROM logs WHERE id = ?",
+            (log_id,)
+        )
+
+        conn.commit()
+        
+    def get_student_logs(self, user_id):
+
+     with self.get_conn() as conn:
+
+        rows = conn.execute('''
+
+            SELECT
+                l.*,
+                v.vehicle_type,
+                v.make,
+                v.model_name
+
+            FROM logs l
+
+            JOIN vehicles v
+            ON l.vehicle_id = v.id
+
+            WHERE v.user_id = ?
+
+            ORDER BY l.timestamp DESC
+
+        ''', (user_id,)).fetchall()
+
+        return [dict(r) for r in rows]
+
+
     def get_stats(self):
         with self.get_conn() as conn:
             today = datetime.now().strftime('%Y-%m-%d')
@@ -360,3 +408,6 @@ class Database:
                 'hourly': [dict(r) for r in hourly],
                 'week_trend': [dict(r) for r in week_trend],
             }
+
+
+  
