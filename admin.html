@@ -546,6 +546,7 @@ tr:hover td { background: rgba(255,255,255,.02); }
   z-index: 1000;
   display: flex; flex-direction: column; gap: 8px;
 }
+
 .toast {
   background: var(--surface);
   border: 1px solid var(--border);
@@ -591,7 +592,7 @@ tr:hover td { background: rgba(255,255,255,.02); }
       <span class="icon">🚙</span> Registered Vehicles
     </div>
     <div class="nav-item" onclick="showPage('students')">
-      <span class="icon">👥</span> Students
+      <span class="icon">👥</span> users
     </div>
   </nav>
 
@@ -769,7 +770,7 @@ tr:hover td { background: rgba(255,255,255,.02); }
             <tr>
               <th>#</th><th>Plate Number</th><th>Type</th><th>Owner</th>
               <th>Student ID</th><th>Vehicle</th><th>Status</th>
-              <th>Confidence</th><th>Timestamp</th>
+              <th>Confidence</th><th>Timestamp</th><th>Action</th>
             </tr>
           </thead>
           <tbody id="logs-tbody"></tbody>
@@ -801,25 +802,121 @@ tr:hover td { background: rgba(255,255,255,.02); }
     </div>
 
     <!-- ══ STUDENTS PAGE ══ -->
-    <div class="page" id="page-students">
-      <div class="table-wrap">
-        <div class="panel-head">
-          <span class="panel-title">REGISTERED STUDENTS</span>
-        </div>
-        <table>
-          <thead>
-            <tr><th>Name</th><th>Email</th><th>Student ID</th><th>Phone</th><th>Joined</th></tr>
-          </thead>
-          <tbody id="students-tbody"></tbody>
-        </table>
-      </div>
+    <!-- ══ USERS PAGE ══ -->
+<div class="page" id="page-students">
+
+  <div class="table-wrap">
+
+    <div class="panel-head">
+
+      <span class="panel-title">
+
+        REGISTERED USERS
+
+      </span>
+
+      <button class="btn-sm"
+              onclick="loadStudents()">
+
+        ↻ Refresh
+
+      </button>
+
     </div>
 
+    <table>
+
+      <thead>
+
+        <tr>
+
+          <th>Name</th>
+
+          <th>Email</th>
+
+          <th>ID</th>
+
+          <th>Role</th>
+
+          <th>Phone</th>
+
+          <th>Joined</th>
+
+          <th>Action</th>
+
+        </tr>
+
+      </thead>
+
+      <tbody id="students-tbody"></tbody>
+
+    </table>
+
+  </div>
+
+</div>
   </div><!-- content -->
 </div><!-- main -->
 
 <div class="toast-container" id="toasts"></div>
+<div id="student-log-modal"
+     style="
+     display:none;
+     position:fixed;
+     inset:0;
+     background:rgba(0,0,0,.7);
+     z-index:9999;
+     align-items:center;
+     justify-content:center;
+">
 
+  <div style="
+      width:90%;
+      max-width:900px;
+      max-height:80vh;
+      overflow:auto;
+      background:#111825;
+      border:1px solid #1a2035;
+      border-radius:8px;
+      padding:20px;
+  ">
+
+    <div style="
+        display:flex;
+        justify-content:space-between;
+        align-items:center;
+        margin-bottom:20px;
+    ">
+
+      <h2 id="student-log-title"
+          style="color:#00d4ff;font-family:Orbitron;">
+        Student Logs
+      </h2>
+
+      <button class="btn-sm danger"
+              onclick="closeStudentLogs()">
+        Close
+      </button>
+
+    </div>
+
+    <table style="width:100%">
+      <thead>
+        <tr>
+          <th>Plate</th>
+          <th>Type</th>
+          <th>Vehicle</th>
+          <th>Time</th>
+        </tr>
+      </thead>
+
+      <tbody id="student-log-body"></tbody>
+
+    </table>
+
+  </div>
+
+</div>
 <script>
 // ── globals ──
 let socket, logsPage = 1, detectCount = 0;
@@ -1047,7 +1144,16 @@ async function loadLogs() {
         <td style="font-size:12px;color:var(--muted);">${[l.vehicle_type, l.make, l.model_name].filter(Boolean).join(' ')  || '—'}</td>
         <td><span class="badge ${l.vehicle_id ? 'reg':'unreg'}">${l.vehicle_id ? '✓ Registered':'⚠ Unknown'}</span></td>
         <td style="font-family:var(--font-mono);font-size:12px;color:var(--cyan);">${l.confidence?.toFixed(0) ?? 100}%</td>
-        <td style="font-family:var(--font-mono);font-size:11px;color:var(--muted);">${fmtDateTime(l.timestamp)}</td>
+        <td style="font-family:var(--font-mono);font-size:11px;color:var(--muted);">
+  ${fmtDateTime(l.timestamp)}
+</td>
+
+<td>
+  <button class="btn-sm danger"
+          onclick="deleteLog(${l.id})">
+    Delete
+  </button>
+</td>
       </tr>`).join('');
 
     const total = d.total;
@@ -1075,6 +1181,91 @@ function renderPagination(total, current, cb) {
   el.innerHTML = html;
 }
 
+async function deleteLog(logId) {
+
+  if (!confirm("Delete this log?")) return;
+
+  try {
+
+    const res = await fetch(`/api/logs/${logId}`, {
+      method: 'DELETE'
+    });
+
+    const data = await res.json();
+
+    if (data.success) {
+
+      showToast({
+        type: 'info',
+        plate: 'Deleted',
+        owner: `Log ${logId} removed`
+      });
+
+      loadLogs();
+
+    } else {
+
+      alert(data.error || "Failed to delete");
+
+    }
+
+  } catch (err) {
+
+    console.error(err);
+    alert("Server error");
+
+  }
+}
+
+// ── delete user ──
+
+async function deleteUser(userId) {
+
+  if (!confirm('Delete this user?')) return;
+
+  try {
+
+    const res = await fetch(
+
+      `/api/admin/users/${userId}`,
+
+      {
+        method:'DELETE'
+      }
+    );
+
+    const data = await res.json();
+
+    if (data.success) {
+
+      showToast({
+
+        type:'info',
+
+        plate:'User Deleted',
+
+        owner:`User ${userId} removed`
+
+      });
+
+      loadStudents();
+
+      loadStats();
+
+    } else {
+
+      alert(data.error || 'Delete failed');
+
+    }
+
+  } catch (err) {
+
+    console.error(err);
+
+    alert('Server error');
+
+  }
+}
 // ── vehicles ──
 async function loadVehicles() {
   try {
@@ -1114,19 +1305,199 @@ async function loadInsideVehicles() {
 }
 
 // ── students ──
+// ── users (students + faculty) ──
+
 async function loadStudents() {
+
   try {
+
     const users = await apiFetch('/api/admin/users');
-    const students = users.filter(u => u.role === 'student');
+
     document.getElementById('students-tbody').innerHTML =
-      students.map(u => `<tr>
-        <td>${u.name}</td>
-        <td style="font-family:var(--font-mono);font-size:12px;">${u.email}</td>
-        <td style="font-family:var(--font-mono);font-size:12px;">${u.student_id || '—'}</td>
-        <td>${u.phone || '—'}</td>
-        <td style="font-family:var(--font-mono);font-size:11px;color:var(--muted);">${fmtDate(u.created_at)}</td>
-      </tr>`).join('');
-  } catch (e) {}
+
+      users.map(u => `
+
+        <tr>
+
+          <td
+            style="
+              cursor:pointer;
+              color:var(--cyan);
+              font-weight:600;
+            "
+
+            onclick="viewStudentLogs(${u.id}, '${u.name}')">
+
+            ${u.name}
+
+          </td>
+
+          <td style="
+              font-family:var(--font-mono);
+              font-size:12px;
+          ">
+            ${u.email}
+          </td>
+
+          <td style="
+              font-family:var(--font-mono);
+              font-size:12px;
+          ">
+            ${u.student_id || '—'}
+          </td>
+
+          <td>
+
+            <span class="badge ${
+
+              u.role === 'faculty'
+                ? 'unreg'
+
+              : u.role === 'admin'
+                ? 'exit'
+
+              : 'reg'
+
+            }">
+
+              ${u.role.toUpperCase()}
+
+            </span>
+
+          </td>
+
+          <td>
+
+            ${u.phone || '—'}
+
+          </td>
+
+          <td style="
+              font-family:var(--font-mono);
+              font-size:11px;
+              color:var(--muted);
+          ">
+
+            ${fmtDate(u.created_at)}
+
+          </td>
+
+          <td>
+
+            ${u.role !== 'admin'
+
+              ? `
+
+                <button class="btn-sm danger"
+
+                        onclick="deleteUser(${u.id})">
+
+                  Delete
+
+                </button>
+
+              `
+
+              : `
+
+                <span style="
+                    color:gray;
+                    font-size:11px;
+                    font-family:var(--font-mono);
+                ">
+
+                  Protected
+
+                </span>
+
+              `
+            }
+
+          </td>
+
+        </tr>
+
+      `).join('');
+
+  } catch (e) {
+
+    console.error(e);
+
+  }
+}
+
+async function viewStudentLogs(studentId, studentName) {
+
+  try {
+
+    document.getElementById('student-log-modal').style.display = 'flex';
+
+    document.getElementById('student-log-title').textContent =
+      `${studentName} - Vehicle Logs`;
+
+    const data = await apiFetch(`/api/student/${studentId}/logs`);
+
+    const tbody = document.getElementById('student-log-body');
+
+    if (!data.logs.length) {
+
+      tbody.innerHTML = `
+        <tr>
+          <td colspan="4"
+              style="text-align:center;padding:30px;color:gray;">
+            No logs found
+          </td>
+        </tr>
+      `;
+
+      return;
+    }
+
+    tbody.innerHTML = data.logs.map(log => `
+
+      <tr>
+
+        <td>
+          <span class="plate-text">
+            ${log.plate_number}
+          </span>
+        </td>
+
+        <td>
+          <span class="badge ${log.log_type}">
+            ${log.log_type.toUpperCase()}
+          </span>
+        </td>
+
+        <td>
+          ${[log.vehicle_type, log.make]
+            .filter(Boolean)
+            .join(' ') || '—'}
+        </td>
+
+        <td style="
+            font-family:var(--font-mono);
+            color:var(--muted);
+            font-size:11px;
+        ">
+          ${fmtDateTime(log.timestamp)}
+        </td>
+
+      </tr>
+
+    `).join('');
+
+  } catch (err) {
+
+    console.error(err);
+
+  }
+}
+
+function closeStudentLogs() {
+
+  document.getElementById('student-log-modal').style.display = 'none';
+
 }
 
 // ── export CSV ──
